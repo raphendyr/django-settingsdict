@@ -1,4 +1,4 @@
-include README.md
+include README.rst
 include LICENSE
 recursive-include django_settingsdict *
 recursive-exclude * *.pyc __pycache__ .DS_Store
