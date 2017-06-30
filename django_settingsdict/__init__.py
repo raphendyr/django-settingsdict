@@ -22,8 +22,8 @@ class SettingsDict(object):
         the removed keys do.
         Result is cached.
         """
-        user_settings = getattr(settings, self._name, None)
-        if not user_settings:
+        user_settings = getattr(settings, self._name, {})
+        if not user_settings and self._required:
             raise ImproperlyConfigured("Settings file is missing dict options with name {}".format(self._name))
         keys = frozenset(user_settings.keys())
 
