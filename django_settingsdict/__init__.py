@@ -1,10 +1,12 @@
 from django.conf import settings
-from django.test.signals import setting_changed
-from django.utils.module_loading import import_string
-from django.utils.functional import cached_property
 from django.core.exceptions import ImproperlyConfigured
+from django.test.signals import setting_changed
+from django.utils.functional import cached_property
+from django.utils.module_loading import import_string
 
 class SettingsDict(object):
+    _INTERNAL = frozenset(('_name', '_defaults', '_required', '_removed', '_import_strings'))
+
     def __init__(self, name, defaults=None, required=None, removed=None, import_strings=None):
         self._name = name
         self._defaults = defaults or {}
@@ -60,13 +62,13 @@ class SettingsDict(object):
         return val
 
     def _clear_cached(self):
-        keep = set('_name', '_defaults', '_required', '_removed', '_import_strings')
-        remove = set(self.__dict__.keys()) - keep
+        remove = set(self.__dict__.keys()) - self._INTERNAL
         for key in remove:
             del self.__dict__[key]
 
+    def _reload_event(self, **kwargs):
+        if kwargs.get('enter', True) and kwargs.get('setting') == self._name:
+            self._clear_cached()
+
     def _listen_for_changes(self):
-        def reload(*args, **kwargs):
-            if kwargs['setting'] == self.name:
-                self._clear_cached()
-        setting_changed.connect(reload)
+        setting_changed.connect(self._reload_event)
