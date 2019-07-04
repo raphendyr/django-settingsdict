@@ -1,18 +1,33 @@
+import warnings
+
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.test.signals import setting_changed
+from django.utils.deprecation import RemovedInNextVersionWarning
 from django.utils.functional import cached_property
 from django.utils.module_loading import import_string
 
-class SettingsDict(object):
-    _INTERNAL = frozenset(('_name', '_defaults', '_required', '_removed', '_import_strings'))
 
-    def __init__(self, name, defaults=None, required=None, removed=None, import_strings=None):
+def _migrate_vals(vals):
+    if len(vals) == 2:
+        return (vals[0], vals[1], None)
+    elif len(vals) == 3:
+        return tuple(vals)
+    raise ValueError(
+        "SettingsDict(migrate=..) requires list of tuples with length 2-3. Found %r"
+        % (vals,))
+
+
+class SettingsDict(object):
+    _INTERNAL = frozenset(('_name', '_defaults', '_required', '_removed', '_import_strings', '_migrate'))
+
+    def __init__(self, name, *, defaults=None, required=None, removed=None, import_strings=None, migrate=None):
         self._name = name
         self._defaults = defaults or {}
         self._required = frozenset(required or ())
         self._removed = frozenset(removed or ())
         self._import_strings = frozenset(import_strings or ())
+        self._migrate = tuple(_migrate_vals(x) for x in migrate) if migrate else ()
 
         self._listen_for_changes()
 
@@ -25,6 +40,19 @@ class SettingsDict(object):
         Result is cached.
         """
         user_settings = getattr(settings, self._name, {})
+
+        for new_name, old_name, script in self._migrate:
+            # TODO: add support for dictionaries using old_name syntax 'NAME.ITEM'
+            if new_name not in user_settings and hasattr(settings, old_name):
+                warnings.warn("Configuration parameter %s has moved to %s.%s. "
+                              "Please update your local configuration."
+                              % (old_name, self._name, new_name),
+                              category=RemovedInNextVersionWarning, stacklevel=3)
+                value = getattr(settings, old_name)
+                if script:
+                    value = script(value, user_settings)
+                user_settings[new_name] = value
+
         if not user_settings and self._required:
             raise ImproperlyConfigured("Settings file is missing dict options with name {}".format(self._name))
         keys = frozenset(user_settings.keys())
@@ -60,6 +88,12 @@ class SettingsDict(object):
 
         setattr(self, key, val)
         return val
+
+    def __getitem__(self, key):
+        try:
+            return getattr(self, key)
+        except AttributeError:
+            raise KeyError(key)
 
     def _clear_cached(self):
         remove = set(self.__dict__.keys()) - self._INTERNAL
