@@ -101,7 +101,7 @@ class SettingsDict(object):
             del self.__dict__[key]
 
     def _reload_event(self, **kwargs):
-        if kwargs.get('enter', True) and kwargs.get('setting') == self._name:
+        if kwargs.get('setting') == self._name:
             self._clear_cached()
 
     def _listen_for_changes(self):

@@ -18,7 +18,7 @@ here = path.abspath(path.dirname(__file__))
 with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
     long_description = f.read()
 
-VERSION = '1.1.0'
+VERSION = '1.1.1'
 
 setup(
     name='django-settingsdict',
